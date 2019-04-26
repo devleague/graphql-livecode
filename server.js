@@ -1,6 +1,7 @@
 const express = require('express');
 const graphqlHTTP = require('express-graphql');
 const graphql = require('graphql');
+const joinMonster = require('join-monster');
 const knex = require('./database/knex');
 
 // Data Models
@@ -12,32 +13,32 @@ const Player = new graphql.GraphQLObjectType({
     last_name: { type: graphql.GraphQLString },
     team: {
       type: Team,
-      resolve: async (player) => {
-        const q = 'SELECT * from teams WHERE id = ?';
-        const result = await knex.raw(q, [player.team_id]);
-        const team = result.rows[0];
-        return team;
-      }
+      sqlJoin: (playerTable, teamTable, args) => `${playerTable}.team_id = ${teamTable}.id`
     }
   })
 });
 
-const Team = new graphql.GraphQLObjectType({
+Player._typeConfig = {
+  sqlTable: 'players',
+  uniqueKey: 'id',
+}
+
+var Team = new graphql.GraphQLObjectType({
   name: 'Team',
   fields: () => ({
     id: { type: graphql.GraphQLInt },
     name: { type: graphql.GraphQLString },
     players: {
       type: graphql.GraphQLList(Player),
-      resolve: async (team) => {
-        const q = 'SELECT * from players WHERE team_id = ?';
-        const result = await knex.raw(q, [team.id]);
-        const players = result.rows;
-        return players;
-      }
+      sqlJoin: (teamTable, playerTable, args) => `${teamTable}.id = ${playerTable}.team_id`
    }
   })
 })
+
+Team._typeConfig = {
+  sqlTable: 'teams',
+  uniqueKey: 'id'
+}
 
 const Match = new graphql.GraphQLObjectType({
   name: 'Match',
@@ -45,24 +46,19 @@ const Match = new graphql.GraphQLObjectType({
     id: { type: graphql.GraphQLInt },
     loser: {
       type: Team,
-      resolve: async (match) => {
-        const q = 'SELECT * from teams WHERE id = ?';
-        const result = await knex.raw(q, [match.loser_team_id]);
-        const team = result.rows[0];
-        return team;
-      }
+      sqlJoin: (matchTable, teamTable, args) => `${matchTable}.loser_team_id = ${teamTable}.id`
     },
     winner: {
       type: Team,
-      resolve: async (match) => {
-        const q = 'SELECT * from teams WHERE id = ?';
-        const result = await knex.raw(q, [match.winner_team_id]);
-        const team = result.rows[0];
-        return team;
-      }
+      sqlJoin: (matchTable, teamTable, args) => `${matchTable}.winner_team_id = ${teamTable}.id`
     }
   })
 })
+
+Match._typeConfig = {
+  sqlTable: 'matches',
+  uniqueKey: 'id'
+}
 
 
 const QueryRoot = new graphql.GraphQLObjectType({
@@ -74,60 +70,58 @@ const QueryRoot = new graphql.GraphQLObjectType({
     },
     players: {
       type: new graphql.GraphQLList(Player),
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * from players';
-        const result = await knex.raw(q);
-        const players = result.rows;
-        return players;
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          return knex.raw(sql);
+        })
       }
     },
     player: {
       type: Player,
       args: { id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) } },
       where: (playerTable, args, context) => `${playerTable}.id = ${args.id}`,
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * from players WHERE id = ?';
-        const player = (await knex.raw(q, [args.id])).rows[0];
-        return player;
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          console.log('sql', sql);
+          return knex.raw(sql)
+        });
       }
     },
     teams: {
       type: new graphql.GraphQLList(Team),
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * FROM teams';
-        const result = await knex.raw(q);
-        const teams = result.rows;
-        return teams;
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          return knex.raw(sql)
+        })
       }
     },
     team: {
       type: Team,
       args: { id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) } },
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * from teams WHERE id = ?';
-        const result = await knex.raw(q, [args.id]);
-        const team = result.rows[0];
-        return team;
+      where: (teamTable, args, context) => `${teamTable}.id = ${args.id}`,
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          return knex.raw(sql)
+        })
       }
     },
     matches: {
       type: new graphql.GraphQLList(Match),
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * from matches';
-        const result = await knex.raw(q);
-        const matches = result.rows;
-        return matches;
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          return knex.raw(sql)
+        })
       }
     },
     match: {
       type: Match,
       args: { id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) } },
       where: (teamTable, args, context) => `${teamTable}.id = ${args.id}`,
-      resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'SELECT * from matches WHERE id = ?';
-        const result = await knex.raw(q, [args.id]);
-        const match = result.rows[0];
-        return match;
+      resolve: (parent, args, context, resolveInfo) => {
+        return joinMonster.default(resolveInfo, {}, sql => {
+          console.log('Match Query: ', sql);
+          return knex.raw(sql)
+        })
       }
     }
   })
@@ -143,12 +137,24 @@ const MutationRoot = new graphql.GraphQLObjectType({
         last_name: { type: graphql.GraphQLNonNull(graphql.GraphQLString) },
         team_id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) },
       },
+      where: (playerTable, args, context) => {
+        if (args.team_id) { return `team.id = ${args.team_id} AND ${playerTable}.id = ${context.id}`; }
+      },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'INSERT INTO players (first_name, last_name, team_id) VALUES (?, ?, ?) RETURNING *';
-        const params = [args.first_name, args.last_name, args.team_id];
-        const result = await knex.raw(q, params);
-        const player = result.rows[0];
-        return player;
+        try {
+          // insert new user
+          let qString = 'INSERT INTO players (first_name, last_name, team_id) VALUES (?, ?, ?) RETURNING *';
+          const player = (await knex.raw(qString, [args.first_name, args.last_name, args.team_id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, player, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     updatePlayer: {
@@ -159,12 +165,24 @@ const MutationRoot = new graphql.GraphQLObjectType({
         last_name: { type: graphql.GraphQLNonNull(graphql.GraphQLString) },
         team_id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) },
       },
+      where: (playerTable, args, context) => {
+        if (args.team_id) { return `team.id = ${args.team_id} AND ${playerTable}.id = ${context.id}`; }
+      },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'UPDATE players SET (first_name, last_name, team_id) = (?, ?, ?) WHERE id = ? RETURNING *';
-        const params = [args.first_name, args.last_name, args.team_id, args.id];
-        const result = await knex.raw(q, params);
-        const player = result.rows[0];
-        return player;
+        try {
+          // update user
+          let qString = 'UPDATE players SET (first_name, last_name, team_id) = (?, ?, ?) WHERE id = ? RETURNING *';
+          const player = (await knex.raw(qString, [args.first_name, args.last_name, args.team_id, args.id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, player, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     deletePlayer: {
@@ -172,12 +190,25 @@ const MutationRoot = new graphql.GraphQLObjectType({
       args: {
         id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) }
       },
+      where: (matchTable, args, context) => {
+        if (context.id) { return `${matchTable}.id = ${context.id}`; }
+      },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'DELETE FROM players WHERE id = ? RETURNING *';
-        const params = [args.id];
-        const result = await knex.raw(q, params);
-        const player = result.rows[0];
-        return player;
+        try {
+          // delete user
+          let qString = 'DELETE FROM players WHERE id = ? RETURNING *';
+          const player = (await knex.raw(qString, [args.id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, player, sql => {
+            console.log(sql);
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     createTeam: {
@@ -186,11 +217,19 @@ const MutationRoot = new graphql.GraphQLObjectType({
         name: { type: graphql.GraphQLNonNull(graphql.GraphQLString) }
       },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'INSERT INTO teams (name) VALUES (?) RETURNING *';
-        const params = [args.name];
-        const result = await knex.raw(q, params);
-        const team = result.rows[0];
-        return team;
+        try {
+          let qString = 'INSERT INTO teams (name) VALUES (?) RETURNING *';
+          const team = (await knex.raw(qString, [args.name])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, team, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     updateTeam: {
@@ -200,11 +239,19 @@ const MutationRoot = new graphql.GraphQLObjectType({
         name: { type: graphql.GraphQLNonNull(graphql.GraphQLString) }
       },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'UPDATE teams SET name = ? WHERE id = ? RETURNING *';
-        const params = [args.name, args.id];
-        const result = await knex.raw(q, params);
-        const team = result.rows[0];
-        return team;
+        try {
+          let qString = 'UPDATE teams SET name = ? WHERE id = ? RETURNING *';
+          const team = (await knex.raw(qString, [args.name, args.id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, team, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     deleteTeam: {
@@ -212,12 +259,18 @@ const MutationRoot = new graphql.GraphQLObjectType({
       args: {
         id: { type: graphql.GraphQLNonNull(graphql.GraphQLInt) },
       },
+      where: (matchTable, args, context) => {
+        if (context.id) { return `${matchTable}.id = ${context.id}`; }
+      },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'DELETE FROM teams WHERE id = ? RETURNING *';
-        const params = [args.id];
-        const result = await knex.raw(q, params);
-        const team = result.rows[0];
-        return team;
+        try {
+          let qString = 'DELETE FROM teams WHERE id = ? RETURNING *';
+          const team = (await knex.raw(qString, [args.id])).rows[0];
+          return team;
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     createMatch: {
@@ -231,11 +284,19 @@ const MutationRoot = new graphql.GraphQLObjectType({
         }
       },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'INSERT INTO matches (winner_team_id, loser_team_id) VALUES (?, ?) RETURNING *';
-        const params = [args.winner_team_id, args.loser_team_id];
-        const result = await knex.raw(q, params);
-        const match = result.rows[0];
-        return match;
+        try {
+          let qString = 'INSERT INTO matches (winner_team_id, loser_team_id) VALUES (?, ?) RETURNING *';
+          const match = (await knex.raw(qString, [args.winner_team_id, args.loser_team_id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, match, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     updateMatch: {
@@ -252,11 +313,19 @@ const MutationRoot = new graphql.GraphQLObjectType({
         }
       },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'UPDATE matches SET (winner_team_id, loser_team_id) = (?, ?)  WHERE id = ? RETURNING *';
-        const params = [args.winner_team_id, args.loser_team_id, args.id];
-        const result = await knex.raw(q, params);
-        const match = result.rows[0];
-        return match;
+        try {
+          let qString = 'UPDATE matches SET (winner_team_id, loser_team_id) = (?, ?)  WHERE id = ? RETURNING *';
+          const match = (await knex.raw(qString, [args.winner_team_id, args.loser_team_id, args.id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, match, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     },
     deleteMatch: {
@@ -266,12 +335,23 @@ const MutationRoot = new graphql.GraphQLObjectType({
           type: graphql.GraphQLNonNull(graphql.GraphQLInt)
         }
       },
+      where: (matchTable, args, context) => {
+        if (context.id) { return `${matchTable}.id = ${context.id}`; }
+      },
       resolve: async (parent, args, context, resolveInfo) => {
-        const q = 'DELETE FROM matches WHERE id = ? RETURNING *';
-        const params = [args.id];
-        const result = await knex.raw(q, params);
-        const match = result.rows[0];
-        return match;
+        try {
+          let qString = 'DELETE FROM matches WHERE id = ? RETURNING *';
+          const match = (await knex.raw(qString, [args.id])).rows[0];
+
+          // return fully loaded data based on schema
+          // where bounded in the where key context
+          return joinMonster.default(resolveInfo, match, sql => {
+            return knex.raw(sql)
+          });
+        }
+        catch (err) {
+          throw new Error(err);
+        }
       }
     }
   })
