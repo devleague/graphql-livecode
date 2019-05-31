@@ -1,0 +1,11 @@
+GraphQL:
+https://graphql.org/
+https://github.com/graphql/graphql-js
+
+JoinMonster:
+https://join-monster.readthedocs.io/en/latest/problem/
+https://github.com/acarl005/join-monster
+
+DataLoader: 
+https://github.com/graphql/dataloader
+https://github.com/graphql/dataloader/blob/master/examples/Knex.md

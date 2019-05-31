@@ -1,0 +1,258 @@
+query helloWorld {
+  hello
+}
+
+query showPlayer {
+  player(id:1) {
+    id,
+    first_name,
+    last_name,
+    team {
+      id,
+      name
+    }
+  }
+}
+
+query showPlayers {
+  players {
+    id,
+    first_name,
+    last_name,
+    team {
+      id, 
+      name
+    }
+  }
+}
+
+query showTeam {
+  team (id:1) {
+    id,
+    name,
+    players {
+      id,
+      first_name,
+      last_name
+    }
+  }
+}
+
+query showTeams {
+  teams {
+    id,
+    name,
+    players {
+      id,
+      first_name,
+      last_name
+    }
+  }
+}
+
+query showMatch {
+  match (id:1) {
+    id,
+    loser {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    },
+    winner {
+      id,
+      name,
+      players {
+        id, 
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+query showMatches {
+  matches {
+    id,
+    winner {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    },
+    loser {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+mutation NewTeam {
+  createTeam(name: "team4") {
+    id,
+		name,
+    players {
+      id,
+      first_name,
+      last_name
+    }
+  }
+}
+
+mutation UpdateTeam {
+  updateTeam(id:12, name: "team10") {
+    id,
+    name,
+    players {
+      id,
+      first_name,
+      last_name
+    }
+  }
+}
+
+mutation DeleteTeam {
+  deleteTeam(id:12) {
+    id,
+    name,
+    players {
+      id,
+      first_name,
+      last_name
+    }
+  }
+}
+
+mutation NewPlayer {
+  createPlayer(first_name:"Unknown", last_name:"User", team_id: 1) {
+    id,
+    first_name,
+    last_name,
+    team {
+      id, 
+      name,
+      players {
+        id,
+        first_name,
+        last_name,
+      }
+    }
+  }
+}
+
+mutation UpdatePlayer {
+  updatePlayer(id:50, first_name:"dead", last_name: "player", team_id:2) {
+    id,
+    first_name,
+    last_name,
+    team {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+mutation DeletePlayer {
+  deletePlayer(id: 50) {
+    id,
+    first_name,
+    last_name,
+    team {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+mutation NewMatch {
+  createMatch (winner_team_id: 2, loser_team_id:1) {
+    id,
+    loser {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    },
+    winner {
+      id,
+      name,
+      players {
+        id, 
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+mutation UpdateMatch {
+  updateMatch(id:11, winner_team_id:1, loser_team_id:2) {
+    id,
+    loser {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    },
+    winner {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    }
+  }
+}
+
+mutation DeleteMatch {
+  deleteMatch(id:11) {
+    id,
+    loser {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    },
+    winner {
+      id,
+      name,
+      players {
+        id,
+        first_name,
+        last_name
+      }
+    }
+  }
+}
